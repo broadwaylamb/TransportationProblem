@@ -1,0 +1,13 @@
+#!/bin/bash
+
+project_spec="subdirs.pro"
+unamestr=`uname`
+
+command -v qmake >/dev/null 2>&1 || { echo >&2 "qmake is required. Aborting."; exit 1; }
+
+if [[ "$unamestr" == 'Darwin' ]]; then
+	qmake -spec macx-xcode "$project_spec" -recursive
+else
+	echo "Only Xcode project generating is supported. Aborting.";
+	exit 1;
+fi
