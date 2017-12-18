@@ -20,37 +20,46 @@ Shipment::Shipment(Quantity q,
                                       row(r),
                                       column(c) {}
 
-TransportationProblem::TransportationProblem(std::vector<Quantity> source,
-                                             std::vector<Quantity> destination,
+TransportationProblem::TransportationProblem(std::vector<Quantity> supply,
+                                             std::vector<Quantity> demand,
                                              CostMatrix cost) {
   
-  Quantity source_total = std::accumulate(source.cbegin(),
-                                          source.cend(),
+  Quantity supply_total = std::accumulate(supply.cbegin(),
+                                          supply.cend(),
                                           0);
-  Quantity dest_total = std::accumulate(destination.cbegin(),
-                                        destination.cend(),
-                                        0);
+  Quantity demand_total = std::accumulate(demand.cbegin(),
+                                          demand.cend(),
+                                          0);
   
   // Fix imbalance
-  if (source_total > dest_total) {
-    destination.push_back(source_total - dest_total);
-  } else if (source_total < dest_total) {
-    source.push_back(dest_total - source_total);
+  if (supply_total > demand_total) {
+    
+    demand.push_back(supply_total - demand_total);
+    
+    for (auto& column : cost) {
+      column.push_back(0);
+    }
+    
+  } else if (supply_total < demand_total) {
+    
+    supply.push_back(demand_total - supply_total);
+    
+    cost.push_back(std::vector<Quantity>(demand.size(), 0));
   }
   
-  _src = source;
-  _dest = destination;
+  _supply = supply;
+  _demand = demand;
   _costMatrix = cost;
-  _shipments = ShipmentMatrix(source.size(),
-                              std::vector<Shipment*>(destination.size()));
+  _shipments = ShipmentMatrix(supply.size(),
+                              std::vector<Shipment*>(demand.size(), 0));
 }
 
-std::vector<Quantity> TransportationProblem::source() const {
-  return _src;
+std::vector<Quantity> TransportationProblem::supply() const {
+  return _supply;
 }
 
-std::vector<Quantity> TransportationProblem::destination() const {
-  return _dest;
+std::vector<Quantity> TransportationProblem::demand() const {
+  return _demand;
 }
 
 TransportationProblem::CostMatrix TransportationProblem::costMatrix() const {
@@ -63,25 +72,25 @@ TransportationProblem::ShipmentMatrix TransportationProblem::shipments() const {
 
 void TransportationProblem::northWestCorner() {
   
-  for (quantity_index row = 0, northwest = 0; row < _src.size(); ++row) {
-    for (quantity_index column = northwest; column < _dest.size(); ++column) {
+  for (quantity_index row = 0, northwest = 0; row < _supply.size(); ++row) {
+    for (quantity_index column = northwest; column < _demand.size(); ++column) {
       
-      Quantity quantity = std::min(_src[row], _dest[column]);
+      Quantity quantity = std::min(_supply[row], _demand[column]);
       
       if (quantity > 0) {
         _shipments[row][column] =
         new Shipment(quantity, _costMatrix[row][column], row, column);
         
-        _src[row] -= quantity;
-        _dest[column] -= quantity;
+        _supply[row] -= quantity;
+        _demand[column] -= quantity;
         
         if (stateDidChangeCallback) {
           stateDidChangeCallback(this, nullptr);
         }
         
-        assert(_src[row] >= 0);
+        assert(_supply[row] >= 0);
         
-        if (_src[row] == 0) {
+        if (_supply[row] == 0) {
           northwest = column;
           break;
         }
@@ -98,8 +107,8 @@ void TransportationProblem::steppingStone() {
   
   _fixDegenerateCase();
   
-  for (quantity_index row = 0; row < _src.size(); ++row) {
-    for (quantity_index column = 0; column < _dest.size(); ++column) {
+  for (quantity_index row = 0; row < _supply.size(); ++row) {
+    for (quantity_index column = 0; column < _demand.size(); ++column) {
       
       if (_shipments[row][column] != nullptr) {
         continue;
@@ -175,16 +184,25 @@ getNeighbors(Shipment const * shipment,
   
   std::pair<Shipment*, Shipment*> neighbors = { nullptr, nullptr };
   
+  if (shipment == nullptr) {
+    return neighbors;
+  }
+  
   for (auto current : list) {
     if (current == shipment) { continue; }
     
-    if (current->row == shipment->row && !neighbors.first) {
+    if (current->row == shipment->row &&
+        neighbors.first == nullptr) {
+      
       neighbors.first = current;
-    } else if (current->column == shipment->column && neighbors.second) {
+      
+    } else if (current->column == shipment->column &&
+               neighbors.second == nullptr) {
+      
       neighbors.second = current;
     }
     
-    if (neighbors.first && neighbors.second) {
+    if (neighbors.first != nullptr && neighbors.second != nullptr) {
       break;
     }
   }
@@ -195,9 +213,12 @@ getNeighbors(Shipment const * shipment,
 static bool removeElementsWithoutNeighbors(std::list<Shipment*> &list) {
   
   auto beforeCount = list.size();
-  list.remove_if([&list](Shipment * shipment){
+  
+  if (beforeCount == 0) { return false; }
+    
+  list.remove_if([&list](Shipment * shipment) {
     auto neighbors = getNeighbors(shipment, list);
-    return neighbors.first == nullptr && neighbors.second == nullptr;
+    return neighbors.first == nullptr || neighbors.second == nullptr;
   });
   
   return beforeCount != list.size();
@@ -225,17 +246,17 @@ std::vector<Shipment*> TransportationProblem::
     previousShipment = (i % 2 == 0) ? neighbors.first : neighbors.second;
   }
   
-  return  stones;
+  return stones;
 }
 
 void TransportationProblem::_fixDegenerateCase() {
   
   auto eps = std::numeric_limits<Quantity>::min();
   
-  if (_src.size() + _dest.size() - 1 == _matrixToList().size()) { return; }
+  if (_supply.size() + _demand.size() - 1 == _matrixToList().size()) { return; }
   
-  for (quantity_index row = 0; row < _src.size(); ++row) {
-    for (quantity_index column = 0; column < _dest.size(); ++column) {
+  for (quantity_index row = 0; row < _supply.size(); ++row) {
+    for (quantity_index column = 0; column < _demand.size(); ++column) {
       if (_shipments[row][column] != nullptr) { continue; }
       
       auto dummy = new Shipment(eps,

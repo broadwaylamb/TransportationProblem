@@ -36,8 +36,8 @@ public:
   using CostMatrix = std::vector<std::vector<Currency>>;
   using ShipmentMatrix = std::vector<std::vector<Shipment*>>;
   
-  TransportationProblem(std::vector<Quantity> source,
-                        std::vector<Quantity> destination,
+  TransportationProblem(std::vector<Quantity> supply,
+                        std::vector<Quantity> demand,
                         CostMatrix cost);
   
   // Algorithm steps
@@ -47,8 +47,8 @@ public:
   
   // Accessing the state
   
-  std::vector<Quantity> source() const;
-  std::vector<Quantity> destination() const;
+  std::vector<Quantity> supply() const;
+  std::vector<Quantity> demand() const;
   CostMatrix            costMatrix() const;
   ShipmentMatrix        shipments() const;
   
@@ -58,8 +58,8 @@ public:
   std::function<StateDidChangeCallback> stateDidChangeCallback = nullptr;
   
 private:
-  std::vector<Quantity> _src;
-  std::vector<Quantity> _dest;
+  std::vector<Quantity> _supply;
+  std::vector<Quantity> _demand;
   CostMatrix            _costMatrix;
   ShipmentMatrix        _shipments;
   

@@ -3,3 +3,5 @@ CONFIG += staticlib
 
 HEADERS = TransportationProblem.h
 SOURCES = TransportationProblem.cpp
+
+CONFIG+=debug
