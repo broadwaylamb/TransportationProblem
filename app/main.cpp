@@ -15,7 +15,13 @@ int main(int argc, char *argv[]) {
                         QLatin1String("_"),
                         QLatin1String(":/Languages"))) {
     application.installTranslator(&translator);
-  }
+    }
+  
+  QCoreApplication
+    ::setApplicationName(application.tr("Transportation Problem"));
+  
+  QCoreApplication
+    ::setApplicationVersion("1.0.0");
   
   MainWindow w;
   w.show();

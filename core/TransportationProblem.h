@@ -14,6 +14,7 @@
 #include <functional>
 #include <list>
 #include <utility>
+#include <iostream>
 
 namespace TProblem {
   
@@ -26,6 +27,8 @@ struct Shipment {
   Quantity       quantity;
   quantity_index row;
   quantity_index column;
+  
+  Currency cost() const;
   
   Shipment(Quantity q, Currency cpu, quantity_index r, quantity_index c);
 };
@@ -40,17 +43,26 @@ public:
                         std::vector<Quantity> demand,
                         CostMatrix cost);
   
+  std::vector<Quantity> supply;
+  std::vector<Quantity> demand;
+  CostMatrix            costMatrix;
+  ShipmentMatrix        shipments;
+  
   // Algorithm steps
   
+  void fixImbalance();
   void northWestCorner();
   void steppingStone();
   
-  // Accessing the state
-  
-  std::vector<Quantity> supply() const;
-  std::vector<Quantity> demand() const;
-  CostMatrix            costMatrix() const;
-  ShipmentMatrix        shipments() const;
+  // Calculating stuff
+  bool     isBalanced() const;
+  bool     isDegenerate() const;
+  Quantity supplyTotal() const;
+  Quantity demandTotal() const;
+  Currency totalCost() const;
+    
+  // Printing
+  void printShipments(std::ostream &stream);
   
   using StateDidChangeCallback = void(TransportationProblem* _Nonnull,
                                       void* _Nullable);
@@ -58,11 +70,6 @@ public:
   std::function<StateDidChangeCallback> stateDidChangeCallback = nullptr;
   
 private:
-  std::vector<Quantity> _supply;
-  std::vector<Quantity> _demand;
-  CostMatrix            _costMatrix;
-  ShipmentMatrix        _shipments;
-  
   void _fixDegenerateCase();
   std::list<Shipment*> _matrixToList() const;
   std::vector<Shipment*> _getClosedPath(Shipment* _Nonnull shipment) const;

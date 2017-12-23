@@ -3,6 +3,7 @@
 
 #include <QMainWindow>
 #include <QStandardItemModel>
+#include "Model.h"
 #include "TransportationProblem.h"
 
 namespace Ui {
@@ -24,16 +25,23 @@ public slots:
   void solve();
   void loadProblem();
   void saveSolution();
+  void about();
+  
+protected:
+  void dragEnterEvent(QDragEnterEvent *event) override;
+  void dropEvent(QDropEvent* event) override;
   
 private:
   Ui::MainWindow* ui;
-  QStandardItemModel* inputModel;
-  QStandardItemModel* outputModel;
+  Model* inputModel;
+  Model* outputModel;
   TProblem::TransportationProblem* problem = nullptr;
   std::vector<TProblem::Quantity> supply;
   std::vector<TProblem::Quantity> demand;
   
   bool pivotFound = false;
+  
+  bool validateInput();
   
   void clearInput();
   void clearOutput();
@@ -47,19 +55,13 @@ private:
   bool writeSolutionToFile(QString fileName);
   bool readProblemFromFile(QString fileName);
   
-  static const QString solveButtonInitialText;
-  static const QString solveButtonFindOptimumText;
+  void alertOpenFileError(QString fileName);
+  
+  static const char* solveButtonInitialText;
+  static const char* solveButtonFindOptimumText;
+  static const char* solveButtonOptimumFoundText;
 };
 
-template<typename Result>
-Result iterate(QStandardItemModel* model,
-                const std::function<Result(QModelIndex)> &lambda) {
-  for (int row = 0; row < model->rowCount(); ++row) {
-    for (int column = 0; column < model->columnCount(); ++column) {
-      auto index = model->index(row, column);
-      lambda(index);
-    }
-  }
-}
+void iterate(Model* model, const std::function<void(QModelIndex)> &lambda);
 
 #endif // MAINWINDOW_H

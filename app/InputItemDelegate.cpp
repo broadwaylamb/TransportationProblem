@@ -7,13 +7,14 @@
 
 #include <QLineEdit>
 #include <QIntValidator>
-#include "InputDelegate.h"
+#include "InputItemDelegate.h"
 
-InputDelegate::InputDelegate(QObject *parent): QItemDelegate(parent) {}
+InputItemDelegate::InputItemDelegate(QObject *parent):
+    OutputItemDelegate(parent) {}
 
-QWidget *InputDelegate::createEditor(QWidget *parent,
-                                     const QStyleOptionViewItem&,
-                                     const QModelIndex &index) const {
+QWidget *InputItemDelegate::createEditor(QWidget *parent,
+                                         const QStyleOptionViewItem&,
+                                         const QModelIndex &index) const {
   
   if (index.column() == index.model()->columnCount() - 1 &&
       index.row()    == index.model()->rowCount() - 1) {
@@ -28,15 +29,15 @@ QWidget *InputDelegate::createEditor(QWidget *parent,
   return editor;
 }
 
-void InputDelegate::setEditorData(QWidget *editor,
-                                  const QModelIndex &index) const {
+void InputItemDelegate::setEditorData(QWidget *editor,
+                                      const QModelIndex &index) const {
   QString value = index.model()->data(index, Qt::EditRole).toString();
   QLineEdit *line = static_cast<QLineEdit*>(editor);
   line->setText(value);
 }
 
 
-void InputDelegate::setModelData(QWidget *editor,
+void InputItemDelegate::setModelData(QWidget *editor,
                                  QAbstractItemModel *model,
                                  const QModelIndex &index) const {
   QLineEdit *line = static_cast<QLineEdit*>(editor);

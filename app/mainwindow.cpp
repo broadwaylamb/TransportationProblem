@@ -2,32 +2,40 @@
 #include <QRandomGenerator>
 #include <QTextStream>
 #include <QMessageBox>
+#include <QDropEvent>
+#include <QDragEnterEvent>
+#include <QMimeData>
+#include "Model.h"
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
-#include "InputDelegate.h"
+#include "InputItemDelegate.h"
 
 #define SUPPLY_MIN_COUNT 2
-#define SUPPLY_MAX_COUNT 20
+#define SUPPLY_MAX_COUNT 50
 #define DEMAND_MIN_COUNT SUPPLY_MIN_COUNT
 #define DEMAND_MAX_COUNT SUPPLY_MAX_COUNT
 
-const QString MainWindow::solveButtonInitialText =
+const char* MainWindow::solveButtonInitialText =
   QT_TR_NOOP("Apply North-West corner method");
 
-const QString MainWindow::solveButtonFindOptimumText =
-  QT_TR_NOOP("Find optimal solution");
+const char* MainWindow::solveButtonFindOptimumText =
+  QT_TR_NOOP("Find optimal solution using the stepping stone method");
+
+const char* MainWindow::solveButtonOptimumFoundText =
+  QT_TR_NOOP("The optimal solution is found");
 
 MainWindow::MainWindow(QWidget *parent):
-QMainWindow(parent),
-ui(new Ui::MainWindow),
-inputModel(new QStandardItemModel),
-outputModel(new QStandardItemModel) {
+  QMainWindow(parent),
+  ui(new Ui::MainWindow),
+  inputModel(new Model(this)),
+  outputModel(new Model(this)) {
 
   ui->setupUi(this);
   
   recreateInputTable();
     
-  ui->input_table->setItemDelegate(new InputDelegate);
+  ui->input_table->setItemDelegate(new InputItemDelegate(this));
+  ui->output_table->setItemDelegate(new OutputItemDelegate(this));
   
   ui->input_table->
     horizontalHeader()->
@@ -42,7 +50,12 @@ outputModel(new QStandardItemModel) {
     verticalHeader()->setSectionResizeMode(QHeaderView::Stretch);
   
   ui->input_table->setModel(inputModel);
+  ui->input_table->verticalHeader()->hide();
+  ui->input_table->horizontalHeader()->hide();
+  
   ui->output_table->setModel(outputModel);
+  ui->output_table->verticalHeader()->hide();
+  ui->output_table->horizontalHeader()->hide();
   
   connect(ui->supply_spin,                  SIGNAL(valueChanged(int)),
           this,                             SLOT(updateSupplyCount(int)));
@@ -65,8 +78,8 @@ outputModel(new QStandardItemModel) {
   connect(ui->action_SaveSolution,          SIGNAL(triggered(void)),
           this,                             SLOT(saveSolution(void)));
   
-  // FIXME: Remove this
-  ui->solve_button->setEnabled(true);
+  connect(ui->action_About,                 SIGNAL(triggered(void)),
+          this,                             SLOT(about(void)));  
 }
 
 MainWindow::~MainWindow() {
@@ -77,6 +90,7 @@ void MainWindow::updateSupplyCount(int newCount) {
   if (newCount < SUPPLY_MIN_COUNT && newCount > SUPPLY_MAX_COUNT) { return; }
   inputModel->setRowCount(newCount + 1);
   resizeTables();
+  validateInput();
   clearOutput();
 }
 
@@ -84,6 +98,7 @@ void MainWindow::updateDemandCount(int newCount) {
   if (newCount < DEMAND_MIN_COUNT && newCount > DEMAND_MAX_COUNT) { return; }
   inputModel->setColumnCount(newCount + 1);
   resizeTables();
+  validateInput();
   clearOutput();
 }
 
@@ -92,8 +107,30 @@ void MainWindow::clearState() {
   clearOutput();
 }
 
+bool MainWindow::validateInput() {
+  
+  bool isValid = true;
+  bool isEmpty = true;
+  
+  iterate(inputModel, [&](QModelIndex index) {
+    if (index.row() == index.model()->rowCount() - 1 &&
+        index.column() == index.model()->columnCount() - 1) {
+      return;
+    }
+    isEmpty = false;
+    isValid = isValid && index.data().isValid();
+  });
+  
+  isValid = isValid && !isEmpty;
+  
+  ui->solve_button->setEnabled(isValid);
+  
+  return isValid;
+}
+
 void MainWindow::clearInput() {
   inputModel->clear();
+  ui->solve_button->setEnabled(false);
   recreateInputTable();
 }
 
@@ -106,14 +143,16 @@ void MainWindow::clearOutput() {
   
   pivotFound = false;
   outputModel->clear();
-  ui->solve_button->setText(MainWindow::solveButtonInitialText);
+  ui->solve_button->setText(tr(MainWindow::solveButtonInitialText));
+  ui->total_cost_label->setNum(0);
+  ui->degenerate_case_label->hide();
 }
 
 void MainWindow::generateRandomInput() {
   
   clearOutput();
   
-  iterate<void>(inputModel, [this](QModelIndex index) {
+  iterate(inputModel, [this](QModelIndex index) {
       
     if (index.column() == inputModel->columnCount() - 1 &&
         index.row() == inputModel->rowCount() - 1) {
@@ -135,6 +174,8 @@ void MainWindow::generateRandomInput() {
     // Generate cost matrix
     inputModel->setData(index, QRandomGenerator::global()->bounded(1, 10));
   });
+  
+  ui->solve_button->setEnabled(true);
 }
 
 void MainWindow::solve() {
@@ -142,8 +183,10 @@ void MainWindow::solve() {
   if (!pivotFound || problem == nullptr) {
     parseInput();
     
-    this->supply = problem->supply();
-    this->demand = problem->demand();
+    problem->fixImbalance();
+    
+    this->supply = problem->supply;
+    this->demand = problem->demand;
     
     problem->northWestCorner();
     
@@ -151,12 +194,17 @@ void MainWindow::solve() {
     
     pivotFound = true;
     
-    ui->solve_button->setText(MainWindow::solveButtonFindOptimumText);
+    ui->solve_button->setText(tr(MainWindow::solveButtonFindOptimumText));
   } else if (problem != nullptr) {
     problem->steppingStone();
     
     outputProblem();
+    ui->solve_button->setText(tr(MainWindow::solveButtonOptimumFoundText));
+    ui->solve_button->setEnabled(false);
   }
+  
+  ui->total_cost_label->setNum(problem->totalCost());
+  ui->degenerate_case_label->setHidden(!problem->isDegenerate());
 }
 
 void MainWindow::parseInput() {
@@ -168,7 +216,7 @@ void MainWindow::parseInput() {
     std::vector<TProblem::Currency>(demand.size(), 0)
   );
   
-  iterate<void>(inputModel,
+  iterate(inputModel,
                 [this, &supply, &demand, &costMatrix](QModelIndex index) {
                   
     if (index.column() == inputModel->columnCount() - 1 &&
@@ -197,10 +245,12 @@ void MainWindow::parseInput() {
 
 void MainWindow::outputProblem() {
   
+  outputModel->clear();
+  
   outputModel->setRowCount(supply.size() + 1);
   outputModel->setColumnCount(demand.size() + 1);
   
-  iterate<void>(outputModel, [this](QModelIndex index) {
+  iterate(outputModel, [this](QModelIndex index) {
     
     if (index.column() == outputModel->columnCount() - 1 &&
         index.row() == outputModel->rowCount() - 1) {
@@ -220,7 +270,7 @@ void MainWindow::outputProblem() {
     }
     
     // Output shipments
-    if (auto shipment = problem->shipments()[index.row()][index.column()]) {
+    if (auto shipment = problem->shipments[index.row()][index.column()]) {
       auto quantity = shipment->quantity;
       outputModel->setData(index, quantity);
     }
@@ -239,9 +289,9 @@ void MainWindow::resizeTables() {
   ui->output_table->horizontalHeader()->resizeSections(QHeaderView::Stretch);
 }
 
-static int calculateFieldWidth(QStandardItemModel* model) {
+static int calculateFieldWidth(Model* model) {
   int fieldWidth = 0;
-  iterate<void>(model, [&fieldWidth](QModelIndex index) {
+  iterate(model, [&fieldWidth](QModelIndex index) {
     // At least two spaces between columns
     auto value = index.data().toString().size() + 2;
     fieldWidth = std::max(fieldWidth, value);
@@ -249,8 +299,8 @@ static int calculateFieldWidth(QStandardItemModel* model) {
   return fieldWidth;
 }
 
-static void printModel(QStandardItemModel* model, QTextStream &stream) {
-  iterate<void>(model, [model, &stream](QModelIndex index) {
+static void printModel(Model* model, QTextStream &stream) {
+  iterate(model, [model, &stream](QModelIndex index) {
     
     auto value = index.data().toString();
     
@@ -315,7 +365,6 @@ bool MainWindow::readProblemFromFile(QString fileName) {
   }
   
   std::vector<std::vector<int>> problem;
-  std::vector<std::vector<int>> solution;
   
   while (in.readLineInto(&line) && !line.startsWith("Solution:")) {
     auto row = parseRow(line);
@@ -324,18 +373,12 @@ bool MainWindow::readProblemFromFile(QString fileName) {
     }
   }
   
-  while (in.readLineInto(&line)) {
-    auto row = parseRow(line);
-    if (!row.empty()) {
-      solution.push_back(row);
-    }
-  }
-  
   if (in.status() != QTextStream::Ok) {
     return false;
   }
   
-  auto comparator = [](const std::vector<int> &lhs, const std::vector<int> &rhs) {
+  auto comparator = [](const std::vector<int> &lhs,
+                       const std::vector<int> &rhs) {
     return lhs.size() < rhs.size();
   };
   
@@ -344,7 +387,9 @@ bool MainWindow::readProblemFromFile(QString fileName) {
                                               problem.cend(),
                                               comparator)->size());
   
-  iterate<void>(inputModel, [this, &problem](QModelIndex index) {
+  validateInput();
+  
+  iterate(inputModel, [this, &problem](QModelIndex index) {
     
     std::vector<int>::size_type row = index.row(), column = index.column();
     
@@ -355,21 +400,7 @@ bool MainWindow::readProblemFromFile(QString fileName) {
     }
   });
   
-  outputModel->setRowCount(solution.size());
-  outputModel->setColumnCount(std::max_element(solution.cbegin(),
-                                               solution.cend(),
-                                               comparator)->size());
-  
-  iterate<void>(outputModel, [this, &solution](QModelIndex index) {
-    
-    std::vector<int>::size_type row = index.row(), column = index.column();
-    
-    if (row < solution.size() &&
-        column < solution[row].size() &&
-        solution[row][column] != 0) {
-      outputModel->setData(index, solution[row][column]);
-    }
-  });
+  clearOutput();
   
   ui->supply_spin->setValue(inputModel->rowCount() - 1);
   ui->demand_spin->setValue(inputModel->columnCount() - 1);
@@ -385,16 +416,8 @@ void MainWindow::loadProblem() {
                                                   QString(),
                                                   tr("Text files (*.txt)"));
   
-  if (fileName.isEmpty()) { return; }
- 
   if (!readProblemFromFile(fileName)) {
-    QMessageBox box;
-    box.setIcon(QMessageBox::Critical);
-    box.setText(tr("Could not read from file %1. "
-                   "Maybe the file is not available "
-                   "or contains corrupted data.").arg(fileName));
-    box.setWindowTitle(tr("Error"));
-    box.exec();
+    alertOpenFileError(fileName);
   }
 }
 
@@ -413,5 +436,50 @@ void MainWindow::saveSolution() {
     box.setText(tr("Could not save to file %1").arg(fileName));
     box.setWindowTitle(tr("Error"));
     box.exec();
+  }
+}
+
+void MainWindow::alertOpenFileError(QString fileName) {
+  QMessageBox box;
+  box.setIcon(QMessageBox::Critical);
+  box.setText(tr("Could not read from file %1. "
+                 "Maybe the file is not available "
+                 "or contains corrupted data.").arg(fileName));
+  box.setWindowTitle(tr("Error"));
+  box.exec();
+}
+
+void MainWindow::dragEnterEvent(QDragEnterEvent* event) {
+  
+  if (!event->mimeData()->hasUrls()) { return; }
+  
+  QUrl file = event->mimeData()->urls().first();
+  
+  if (file.isLocalFile() && file.fileName().endsWith(".txt")) {
+    event->setAccepted(true);
+  }
+}
+
+void MainWindow::dropEvent(QDropEvent* event) {
+  
+  QString fileName = event->mimeData()->urls().first().path();
+  
+  if (!readProblemFromFile(fileName)) {
+    alertOpenFileError(fileName);
+  }
+}
+
+void MainWindow::about() {
+  QMessageBox::about(this, tr("About Transportation Problem"),
+                     tr("Transportation Problem"));
+}
+
+void iterate(Model* model,
+             const std::function<void(QModelIndex)> &lambda) {
+  for (int row = 0; row < model->rowCount(); ++row) {
+    for (int column = 0; column < model->columnCount(); ++column) {
+      auto index = model->index(row, column);
+      lambda(index);
+    }
   }
 }

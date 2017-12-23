@@ -1,9 +1,16 @@
 QT += core gui widgets
 TEMPLATE = app
 
-SOURCES += main.cpp mainwindow.cpp InputDelegate.cpp
+SOURCES += main.cpp \
+           mainwindow.cpp \
+           InputItemDelegate.cpp \
+           OutputItemDelegate.cpp \
+           Model.cpp
 
-HEADERS += mainwindow.h InputDelegate.h
+HEADERS += mainwindow.h \
+           InputItemDelegate.h \
+           OutputItemDelegate.h \
+           Model.h
 
 FORMS += mainwindow.ui
 
@@ -20,4 +27,6 @@ system(lupdate $$_PRO_FILE_)
 system(lrelease $$_PRO_FILE_)
 
 RESOURCES += translations.qrc
+
+#macx: QMAKE_INFO_PLIST = Info.plist
 

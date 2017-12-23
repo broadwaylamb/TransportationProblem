@@ -8,17 +8,17 @@
         <translation type="vanished">Транспортная задача</translation>
     </message>
     <message>
-        <location filename="../mainwindow.ui" line="88"/>
+        <location filename="../mainwindow.ui" line="159"/>
         <source>Clear</source>
         <translation>Очистить</translation>
     </message>
     <message>
-        <location filename="../mainwindow.ui" line="117"/>
+        <location filename="../mainwindow.ui" line="49"/>
         <source>Output</source>
         <translation>Решение</translation>
     </message>
     <message>
-        <location filename="../mainwindow.ui" line="110"/>
+        <location filename="../mainwindow.ui" line="42"/>
         <source>Input</source>
         <translation>Исходные данные</translation>
     </message>
@@ -28,17 +28,17 @@
         <translation>Транспортная задача</translation>
     </message>
     <message>
-        <location filename="../mainwindow.ui" line="101"/>
+        <location filename="../mainwindow.ui" line="172"/>
         <source>Generate random input</source>
         <translation>Сгенерировать случайные данные</translation>
     </message>
     <message>
-        <location filename="../mainwindow.ui" line="41"/>
+        <location filename="../mainwindow.ui" line="82"/>
         <source>Supply:</source>
         <translation>Производители:</translation>
     </message>
     <message>
-        <location filename="../mainwindow.ui" line="61"/>
+        <location filename="../mainwindow.ui" line="102"/>
         <source>Demand:</source>
         <translation>Потребители:</translation>
     </message>
@@ -51,80 +51,117 @@
         <translation type="vanished">Решение</translation>
     </message>
     <message>
-        <location filename="../mainwindow.ui" line="127"/>
-        <location filename="../mainwindow.cpp" line="15"/>
+        <location filename="../mainwindow.ui" line="35"/>
+        <location filename="../mainwindow.cpp" line="19"/>
         <source>Apply North-West corner method</source>
         <translation>Применить метод северо-западного угла</translation>
     </message>
     <message>
-        <location filename="../mainwindow.ui" line="146"/>
+        <location filename="../mainwindow.ui" line="58"/>
+        <source>Total cost:</source>
+        <translation>Полная стоимость перевозок:</translation>
+    </message>
+    <message>
+        <source>Balanced</source>
+        <translation type="vanished">Сбалансированная задача</translation>
+    </message>
+    <message>
+        <source>Degenerate case! Multiple optimal solutions exist.</source>
+        <translation type="obsolete">Вырожденный план!</translation>
+    </message>
+    <message>
+        <location filename="../mainwindow.ui" line="193"/>
         <source>File</source>
         <translation>Файл</translation>
     </message>
     <message>
-        <location filename="../mainwindow.ui" line="153"/>
+        <location filename="../mainwindow.ui" line="200"/>
         <source>Help</source>
         <translation>Справка</translation>
     </message>
     <message>
-        <location filename="../mainwindow.ui" line="162"/>
+        <location filename="../mainwindow.ui" line="209"/>
         <source>Save solution...</source>
         <translation>Сохранить решение...</translation>
     </message>
     <message>
-        <location filename="../mainwindow.ui" line="165"/>
+        <location filename="../mainwindow.ui" line="212"/>
         <source>Ctrl+S</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../mainwindow.ui" line="170"/>
+        <location filename="../mainwindow.ui" line="225"/>
         <source>About</source>
         <translation>О программе</translation>
     </message>
     <message>
-        <location filename="../mainwindow.ui" line="175"/>
+        <location filename="../mainwindow.ui" line="217"/>
         <source>Load problem...</source>
         <translation>Загрузить условие...</translation>
     </message>
     <message>
-        <location filename="../mainwindow.ui" line="178"/>
+        <location filename="../mainwindow.ui" line="147"/>
+        <source>Degenerate case!</source>
+        <translation>Вырожденный план!</translation>
+    </message>
+    <message>
+        <location filename="../mainwindow.ui" line="220"/>
         <source>Ctrl+O</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../mainwindow.cpp" line="18"/>
         <source>Find optimal solution</source>
-        <translation>Построить оптимальное решение</translation>
+        <translation type="vanished">Построить оптимальное решение</translation>
     </message>
     <message>
-        <location filename="../mainwindow.cpp" line="378"/>
+        <location filename="../mainwindow.cpp" line="415"/>
         <source>Load problem</source>
         <translation>Загрузить условие</translation>
     </message>
     <message>
-        <location filename="../mainwindow.cpp" line="380"/>
-        <location filename="../mainwindow.cpp" line="400"/>
+        <location filename="../mainwindow.cpp" line="417"/>
+        <location filename="../mainwindow.cpp" line="429"/>
         <source>Text files (*.txt)</source>
         <translation>Текстовые файлы (*.txt)</translation>
     </message>
     <message>
-        <location filename="../mainwindow.cpp" line="387"/>
+        <location filename="../mainwindow.cpp" line="445"/>
         <source>Could not read from file %1. Maybe the file is not available or contains corrupted data.</source>
         <translation>Не удалось прочитать из файла %1. Возможно, файл недоступен или данные повреждены.</translation>
     </message>
     <message>
-        <location filename="../mainwindow.cpp" line="390"/>
-        <location filename="../mainwindow.cpp" line="408"/>
+        <location filename="../mainwindow.cpp" line="473"/>
+        <source>About Transportation Problem</source>
+        <translation>О программе &quot;Транспортная задача&quot;</translation>
+    </message>
+    <message>
+        <location filename="../mainwindow.cpp" line="474"/>
+        <source>Transportation Problem</source>
+        <translation>Транспортная задача</translation>
+    </message>
+    <message>
+        <location filename="../mainwindow.cpp" line="437"/>
+        <location filename="../mainwindow.cpp" line="448"/>
         <source>Error</source>
         <translation>Ошибка</translation>
     </message>
     <message>
-        <location filename="../mainwindow.cpp" line="398"/>
+        <location filename="../mainwindow.cpp" line="22"/>
+        <source>Find optimal solution using the stepping stone method</source>
+        <translation>Найти оптимальное решение распределительным методом</translation>
+    </message>
+    <message>
+        <location filename="../mainwindow.cpp" line="25"/>
+        <source>The optimal solution is found</source>
+        <translation>Оптимальное решение найдено</translation>
+    </message>
+    <message>
+        <location filename="../mainwindow.cpp" line="427"/>
         <source>Save solution</source>
         <translation>Сохранить решение</translation>
     </message>
     <message>
-        <location filename="../mainwindow.cpp" line="407"/>
+        <location filename="../mainwindow.cpp" line="436"/>
         <source>Could not save to file %1</source>
         <translation>Не удалось сохранить в файл %1</translation>
     </message>

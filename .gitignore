@@ -45,7 +45,6 @@ CMakeLists.txt.user*
 *.xcodeproj
 *.xcworkspace
 .DS_Store
-Info.plist
 
 ## Build generated
 build/

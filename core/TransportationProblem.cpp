@@ -8,6 +8,8 @@
 
 #include <limits.h>
 #include <assert.h>
+#include <algorithm>
+#include <cmath>
 #include "TransportationProblem.h"
 
 using namespace TProblem;
@@ -22,75 +24,107 @@ Shipment::Shipment(Quantity q,
 
 TransportationProblem::TransportationProblem(std::vector<Quantity> supply,
                                              std::vector<Quantity> demand,
-                                             CostMatrix cost) {
+                                             CostMatrix costMatrix):
+  supply(supply),
+  demand(demand),
+  costMatrix(costMatrix),
+  shipments(ShipmentMatrix(supply.size(),
+                            std::vector<Shipment*>(demand.size(), 0))) {}
+
+Currency Shipment::cost() const {
+  return costPerUnit * quantity;
+}
+
+bool TransportationProblem::isBalanced() const {
+  return supplyTotal() == demandTotal();
+}
+
+bool TransportationProblem::isDegenerate() const {
+  return supply.size() + demand.size() - 1 != _matrixToList().size();
+}
+
+Quantity TransportationProblem::supplyTotal() const {
+  return std::accumulate(supply.cbegin(), supply.cend(), 0);
+}
+
+Quantity TransportationProblem::demandTotal() const {
+  return std::accumulate(demand.cbegin(), demand.cend(), 0);
+}
+
+void TransportationProblem::printShipments(std::ostream &stream) {
   
-  Quantity supply_total = std::accumulate(supply.cbegin(),
-                                          supply.cend(),
-                                          0);
-  Quantity demand_total = std::accumulate(demand.cbegin(),
-                                          demand.cend(),
-                                          0);
+  int fieldWidth = 0;
+  for (auto& row : shipments) {
+    for (auto shipment : row) {
+      if (shipment != nullptr) {
+        int width = std::ceil(std::log10(shipment->quantity + 1)) + 2;
+        fieldWidth = std::max(fieldWidth, width);
+      }
+    }
+  }
+
+  for (auto& row : shipments) {
+    for (auto shipment : row) {
+      stream.width(fieldWidth);
+      if (shipment != nullptr) {
+        stream << shipment->quantity;
+      } else {
+        stream << "-";
+      }
+    }
+    stream << std::endl;
+  }
   
-  // Fix imbalance
-  if (supply_total > demand_total) {
+  stream << std::endl;
+}
+
+void TransportationProblem::fixImbalance() {
+  
+  Quantity supplyTotal = this->supplyTotal();
+  Quantity demandTotal = this->demandTotal();
+  
+  if (supplyTotal > demandTotal) {
     
-    demand.push_back(supply_total - demand_total);
+    demand.push_back(supplyTotal - demandTotal);
     
-    for (auto& column : cost) {
+    for (auto& column : costMatrix) {
       column.push_back(0);
     }
     
-  } else if (supply_total < demand_total) {
+    for (auto& column : shipments) {
+      column.push_back(nullptr);
+    }
     
-    supply.push_back(demand_total - supply_total);
+  } else if (supplyTotal < demandTotal) {
     
-    cost.push_back(std::vector<Quantity>(demand.size(), 0));
+    supply.push_back(demandTotal - supplyTotal);
+    
+    costMatrix.push_back(std::vector<Quantity>(demand.size(), 0));
+    shipments.push_back(std::vector<Shipment*>(demand.size(), nullptr));
   }
-  
-  _supply = supply;
-  _demand = demand;
-  _costMatrix = cost;
-  _shipments = ShipmentMatrix(supply.size(),
-                              std::vector<Shipment*>(demand.size(), 0));
-}
-
-std::vector<Quantity> TransportationProblem::supply() const {
-  return _supply;
-}
-
-std::vector<Quantity> TransportationProblem::demand() const {
-  return _demand;
-}
-
-TransportationProblem::CostMatrix TransportationProblem::costMatrix() const {
-  return _costMatrix;
-}
-
-TransportationProblem::ShipmentMatrix TransportationProblem::shipments() const {
-  return _shipments;
 }
 
 void TransportationProblem::northWestCorner() {
   
-  for (quantity_index row = 0, northwest = 0; row < _supply.size(); ++row) {
-    for (quantity_index column = northwest; column < _demand.size(); ++column) {
+  for (quantity_index row = 0, northwest = 0; row < supply.size(); ++row) {
+    for (quantity_index column = northwest; column < demand.size(); ++column) {
       
-      Quantity quantity = std::min(_supply[row], _demand[column]);
+      Quantity quantity = std::min(supply[row], demand[column]);
       
       if (quantity > 0) {
-        _shipments[row][column] =
-        new Shipment(quantity, _costMatrix[row][column], row, column);
+        shipments[row][column] =
+          new Shipment(quantity, costMatrix[row][column], row, column);
         
-        _supply[row] -= quantity;
-        _demand[column] -= quantity;
+        supply[row] -= quantity;
+        demand[column] -= quantity;
         
         if (stateDidChangeCallback) {
           stateDidChangeCallback(this, nullptr);
         }
         
-        assert(_supply[row] >= 0);
+        assert(supply[row] >= 0);
         
-        if (_supply[row] == 0) {
+        if (supply[row] == 0) {
           northwest = column;
           break;
         }
@@ -101,65 +135,74 @@ void TransportationProblem::northWestCorner() {
 
 void TransportationProblem::steppingStone() {
   
-  Currency maxReduction = 0;
-  std::vector<Shipment*> move;
-  Shipment* leaving = nullptr;
+  Currency previousCost = std::numeric_limits<Currency>::quiet_NaN();
+  Currency currentCost = totalCost();
   
-  _fixDegenerateCase();
+  std::cout << "Start optimizing" << std::endl;
+  printShipments(std::cout);
   
-  for (quantity_index row = 0; row < _supply.size(); ++row) {
-    for (quantity_index column = 0; column < _demand.size(); ++column) {
-      
-      if (_shipments[row][column] != nullptr) {
-        continue;
-      }
-      
-      auto trial = new Shipment(0, _costMatrix[row][column], row, column);
-      std::vector<Shipment*> path = _getClosedPath(trial);
-      
-      Currency reduction = 0;
-      Quantity lowestQuantity = std::numeric_limits<Quantity>::max();
-      Shipment* leavingCandidate = nullptr;
-      
-      bool plus = true;
-      for (auto shipment : path) {
-        if (plus) {
-          reduction += shipment->costPerUnit;
-        } else {
-          reduction -= shipment->costPerUnit;
-          if (shipment->quantity < lowestQuantity) {
-            leavingCandidate = shipment;
-            lowestQuantity = shipment->quantity;
-          }
+  while (previousCost != currentCost) {
+    Currency maxReduction = 0;
+    std::vector<Shipment*> move;
+    Shipment* leaving = nullptr;
+    
+    _fixDegenerateCase();
+    
+    for (quantity_index row = 0; row < supply.size(); ++row) {
+      for (quantity_index column = 0; column < demand.size(); ++column) {
+        
+        if (shipments[row][column] != nullptr) {
+          continue;
         }
-        plus = !plus;
-      }
-      
-      if (reduction < maxReduction) {
-        move = path;
-        leaving = leavingCandidate;
-        maxReduction = reduction;
+        
+        auto trial = new Shipment(0, costMatrix[row][column], row, column);
+        std::vector<Shipment*> path = _getClosedPath(trial);
+        
+        Currency reduction = 0;
+        Quantity lowestQuantity = std::numeric_limits<Quantity>::max();
+        Shipment* leavingCandidate = nullptr;
+        
+        bool plus = true;
+        for (auto shipment : path) {
+          if (plus) {
+            reduction += shipment->costPerUnit;
+          } else {
+            reduction -= shipment->costPerUnit;
+            if (shipment->quantity < lowestQuantity) {
+              leavingCandidate = shipment;
+              lowestQuantity = shipment->quantity;
+            }
+          }
+          plus = !plus;
+        }
+        
+        if (reduction < maxReduction) {
+          move = path;
+          leaving = leavingCandidate;
+          maxReduction = reduction;
+        }
       }
     }
-  }
-  
-  if (!move.empty() && leaving != nullptr) {
-    Quantity q = leaving->quantity;
-    bool plus = true;
-    for (auto shipment : move) {
-      
-      shipment->quantity += plus ? q : -q;
-      
-      _shipments[shipment->row][shipment->column] = shipment->quantity == 0 ?
+    
+    if (!move.empty() && leaving != nullptr) {
+      Quantity q = leaving->quantity;
+      bool plus = true;
+      for (auto shipment : move) {
+        
+        shipment->quantity += plus ? q : -q;
+        
+        shipments[shipment->row][shipment->column] = shipment->quantity == 0 ?
                                                       nullptr :
                                                       shipment;
-      
-      plus = !plus;
+        
+        plus = !plus;
+      }
+      previousCost = currentCost;
+      currentCost = totalCost();
+      continue;
+    } else {
+      break;
     }
-    
-    // FIXME: Remove recursive call
-    
-    steppingStone();
   }
 }
 
@@ -167,7 +210,7 @@ std::list<Shipment*> TransportationProblem::_matrixToList() const {
   
   std::list<Shipment*> list;
   
-  for (auto& row : _shipments) {
+  for (auto& row : shipments) {
     for (auto shipment : row) {
       if (shipment != nullptr) {
         list.push_back(shipment);
@@ -251,23 +294,40 @@ std::vector<Shipment*> TransportationProblem::
 
 void TransportationProblem::_fixDegenerateCase() {
   
-  auto eps = std::numeric_limits<Quantity>::min();
+  if (!isDegenerate()) { return; }
   
-  if (_supply.size() + _demand.size() - 1 == _matrixToList().size()) { return; }
-  
-  for (quantity_index row = 0; row < _supply.size(); ++row) {
-    for (quantity_index column = 0; column < _demand.size(); ++column) {
-      if (_shipments[row][column] != nullptr) { continue; }
+  for (quantity_index row = 0; row < supply.size(); ++row) {
+    for (quantity_index column = 0; column < demand.size(); ++column) {
+
+      if (shipments[row][column] != nullptr) { continue; }
       
-      auto dummy = new Shipment(eps,
-                                _costMatrix[row][column],
+      auto dummy = new Shipment(0,
+                                costMatrix[row][column],
                                 row,
                                 column);
       
       if (_getClosedPath(dummy).empty()) {
-        _shipments[row][column] = dummy;
+        shipments[row][column] = dummy;
         return;
+      } else {
+        delete dummy;
       }
     }
   }
 }
+
+Currency TransportationProblem::totalCost() const {
+  
+  Currency accumulator = 0;
+  
+  for (auto& row : shipments) {
+    for (auto shipment : row) {
+      if (shipment != nullptr) {
+        accumulator += shipment->cost();
+      }
+    }
+  }
+
+  return accumulator;
+}
+
