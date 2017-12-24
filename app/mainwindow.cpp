@@ -5,6 +5,8 @@
 #include <QDropEvent>
 #include <QDragEnterEvent>
 #include <QMimeData>
+#include <fstream>
+#include <algorithm>
 #include "Model.h"
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
@@ -14,6 +16,10 @@
 #define SUPPLY_MAX_COUNT 50
 #define DEMAND_MIN_COUNT SUPPLY_MIN_COUNT
 #define DEMAND_MAX_COUNT SUPPLY_MAX_COUNT
+#define DEFAULT_MIN_COST 1
+#define DEFAULT_MAX_COST 10
+#define DEFAULT_MIN_QUANTITY 1
+#define DEFAULT_MAX_QUANTITY 70
 
 const char* MainWindow::solveButtonInitialText =
   QT_TR_NOOP("Apply North-West corner method");
@@ -25,17 +31,33 @@ const char* MainWindow::solveButtonOptimumFoundText =
   QT_TR_NOOP("The optimal solution is found");
 
 MainWindow::MainWindow(QWidget *parent):
-  QMainWindow(parent),
-  ui(new Ui::MainWindow),
-  inputModel(new Model(this)),
-  outputModel(new Model(this)) {
+QMainWindow(parent),
+ui(new Ui::MainWindow),
+inputModel(new Model(this)),
+outputModel(new Model(this)),
+minCost(DEFAULT_MIN_COST),
+maxCost(DEFAULT_MAX_COST),
+minQuantity(DEFAULT_MIN_QUANTITY),
+maxQuantity(DEFAULT_MAX_QUANTITY) {
 
   ui->setupUi(this);
   
   recreateInputTable();
-    
-  ui->input_table->setItemDelegate(new InputItemDelegate(this));
+  
+  auto inputDelegate = new InputItemDelegate(this);
+  ui->input_table->setItemDelegate(inputDelegate);
   ui->output_table->setItemDelegate(new OutputItemDelegate(this));
+  
+  inputDelegate->shouldSetDataCallback =
+    [this](const QModelIndex& index, int newValue) {
+      
+      if (index.data().toInt() != newValue) {
+        this->validateInput();
+        this->clearOutput();
+      }
+
+      return true;
+    };
   
   ui->input_table->
     horizontalHeader()->
@@ -50,12 +72,12 @@ MainWindow::MainWindow(QWidget *parent):
     verticalHeader()->setSectionResizeMode(QHeaderView::Stretch);
   
   ui->input_table->setModel(inputModel);
-  ui->input_table->verticalHeader()->hide();
-  ui->input_table->horizontalHeader()->hide();
-  
   ui->output_table->setModel(outputModel);
-  ui->output_table->verticalHeader()->hide();
-  ui->output_table->horizontalHeader()->hide();
+  
+  ui->min_cost_spin->setValue(minCost);
+  ui->max_cost_spin->setValue(maxCost);
+  ui->min_quantity_spin->setValue(minQuantity);
+  ui->max_quantity_spin->setValue(maxQuantity);
   
   connect(ui->supply_spin,                  SIGNAL(valueChanged(int)),
           this,                             SLOT(updateSupplyCount(int)));
@@ -79,7 +101,22 @@ MainWindow::MainWindow(QWidget *parent):
           this,                             SLOT(saveSolution(void)));
   
   connect(ui->action_About,                 SIGNAL(triggered(void)),
-          this,                             SLOT(about(void)));  
+          this,                             SLOT(about(void)));
+  
+  connect(ui->min_cost_spin,                SIGNAL(valueChanged(int)),
+          this,                             SLOT(updateMinCost(int)));
+  
+  connect(ui->max_cost_spin,                SIGNAL(valueChanged(int)),
+          this,                             SLOT(updateMaxCost(int)));
+  
+  connect(ui->min_quantity_spin,            SIGNAL(valueChanged(int)),
+          this,                             SLOT(updateMinQuantity(int)));
+  
+  connect(ui->max_quantity_spin,            SIGNAL(valueChanged(int)),
+          this,                             SLOT(updateMaxQuantity(int)));
+  
+  connect(ui->batch_generate_button,        SIGNAL(clicked(void)),
+          this,                             SLOT(batchGenerate(void)));
 }
 
 MainWindow::~MainWindow() {
@@ -100,6 +137,22 @@ void MainWindow::updateDemandCount(int newCount) {
   resizeTables();
   validateInput();
   clearOutput();
+}
+
+void MainWindow::updateMinCost(int newCost) {
+  minCost = newCost;
+}
+
+void MainWindow::updateMaxCost(int newCost) {
+  maxCost = newCost;
+}
+
+void MainWindow::updateMinQuantity(int newQuantity) {
+  minQuantity = newQuantity;
+}
+
+void MainWindow::updateMaxQuantity(int newQuantity) {
+  maxQuantity = newQuantity;
 }
 
 void MainWindow::clearState() {
@@ -161,21 +214,101 @@ void MainWindow::generateRandomInput() {
     
     // Generate supply
     if (index.column() == inputModel->columnCount() - 1) {
-      inputModel->setData(index, QRandomGenerator::global()->bounded(1, 70));
+      int randomNumber = QRandomGenerator::global()->bounded(minQuantity,
+                                                             maxQuantity);
+      inputModel->setData(index, randomNumber);
       return;
     }
     
     // Generate demand
     if (index.row() == inputModel->rowCount() - 1) {
-      inputModel->setData(index, QRandomGenerator::global()->bounded(1, 70));
+      int randomNumber = QRandomGenerator::global()->bounded(minQuantity,
+                                                             maxQuantity);
+      inputModel->setData(index, randomNumber);
       return;
     }
     
     // Generate cost matrix
-    inputModel->setData(index, QRandomGenerator::global()->bounded(1, 10));
+    int randomNumber = QRandomGenerator::global()->bounded(minCost, maxCost);
+    inputModel->setData(index, randomNumber);
   });
   
   ui->solve_button->setEnabled(true);
+  
+  repaint();
+}
+
+void MainWindow::batchGenerate() {
+  
+  QString problemFileName =
+    QFileDialog::getSaveFileName(this,
+                                 tr("Save problems only"),
+                                 QString(),
+                                 tr("Text files (*.txt)"));
+  
+  QString solutionFileName =
+    QFileDialog::getSaveFileName(this,
+                                 tr("Save problems with solutions"),
+                                 QString(),
+                                 tr("Text files (*.txt)"));
+  
+  std::ofstream problemOutput;
+  std::ofstream solutionOutput;
+  problemOutput.open(problemFileName.toUtf8().constData());
+  solutionOutput.open(solutionFileName.toUtf8().constData());
+  
+  for (int i = 0; i < ui->batch_generate_spin->value(); ++i) {
+    
+    int supplyCount = ui->supply_spin->value();
+    int demandCount = ui->demand_spin->value();
+    
+    std::vector<TProblem::Quantity> supply(supplyCount);
+    std::vector<TProblem::Quantity> demand(demandCount);
+    TProblem::TransportationProblem::CostMatrix costMatrix(
+      supplyCount,
+      std::vector<TProblem::Currency>(demandCount)
+    );
+    
+    for (auto& q : supply) {
+      q = QRandomGenerator::global()->bounded(minQuantity, maxQuantity);
+    }
+    
+    for (auto& q : demand) {
+      q = QRandomGenerator::global()->bounded(minQuantity, maxQuantity);
+    }
+    
+    for (auto& row : costMatrix) {
+      for (auto& cost : row) {
+        cost = QRandomGenerator::global()->bounded(minCost, maxCost);
+      }
+    }
+    
+    TProblem::TransportationProblem problem(supply, demand, costMatrix);
+    
+    auto problemTitle = tr("Problem %1:").arg(i + 1).toUtf8().constData();
+    
+    problemOutput << problemTitle << std::endl;
+    problem.printWithCosts(problemOutput);
+    problemOutput << std::endl;
+    
+    solutionOutput << problemTitle << std::endl;
+    problem.printWithCosts(solutionOutput);
+    solutionOutput << std::endl;
+    
+    problem.fixImbalance();
+    
+    supply = problem.supply;
+    demand = problem.demand;
+    
+    problem.northWestCorner();
+    problem.steppingStone();
+    
+    solutionOutput << tr("Solution:").toUtf8().constData() << std::endl;
+    problem.printWithShipments(solutionOutput);
+    solutionOutput << tr("Total cost: %1")
+                        .arg(problem.totalCost()).toUtf8().constData();
+    solutionOutput << std::endl << std::endl;
+  }
 }
 
 void MainWindow::solve() {

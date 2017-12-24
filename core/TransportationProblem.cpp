@@ -8,8 +8,6 @@
 
 #include <limits.h>
 #include <assert.h>
-#include <algorithm>
-#include <cmath>
 #include "TransportationProblem.h"
 
 using namespace TProblem;
@@ -25,11 +23,14 @@ Shipment::Shipment(Quantity q,
 TransportationProblem::TransportationProblem(std::vector<Quantity> supply,
                                              std::vector<Quantity> demand,
                                              CostMatrix costMatrix):
-  supply(supply),
-  demand(demand),
-  costMatrix(costMatrix),
-  shipments(ShipmentMatrix(supply.size(),
-                            std::vector<Shipment*>(demand.size(), 0))) {}
+supply(supply),
+demand(demand),
+costMatrix(costMatrix),
+shipments(ShipmentMatrix(supply.size(),
+                          std::vector<Shipment*>(demand.size(), 0))),
+_currentSupply(supply),
+_currentDemand(demand)
+{}
 
 Currency Shipment::cost() const {
   return costPerUnit * quantity;
@@ -40,7 +41,7 @@ bool TransportationProblem::isBalanced() const {
 }
 
 bool TransportationProblem::isDegenerate() const {
-  return supply.size() + demand.size() - 1 != _matrixToList().size();
+  return _currentSupply.size() + _currentDemand.size() - 1 != _matrixToList().size();
 }
 
 Quantity TransportationProblem::supplyTotal() const {
@@ -51,31 +52,23 @@ Quantity TransportationProblem::demandTotal() const {
   return std::accumulate(demand.cbegin(), demand.cend(), 0);
 }
 
-void TransportationProblem::printShipments(std::ostream &stream) {
-  
-  int fieldWidth = 0;
-  for (auto& row : shipments) {
-    for (auto shipment : row) {
-      if (shipment != nullptr) {
-        int width = std::ceil(std::log10(shipment->quantity + 1)) + 2;
-        fieldWidth = std::max(fieldWidth, width);
-      }
-    }
-  }
+void TransportationProblem::printWithCosts(std::ostream &stream) {
+  prettyPrint<Currency>(stream,
+                        costMatrix,
+                        [](Currency cost) { return std::to_string(cost); });
+}
 
-  for (auto& row : shipments) {
-    for (auto shipment : row) {
-      stream.width(fieldWidth);
-      if (shipment != nullptr) {
-        stream << shipment->quantity;
-      } else {
-        stream << "-";
-      }
-    }
-    stream << std::endl;
-  }
+void TransportationProblem::printWithShipments(std::ostream &stream) {
   
-  stream << std::endl;
+  prettyPrint<Shipment*>(stream,
+                         shipments,
+                         [](Shipment* shipment) {
+                           if (shipment != nullptr) {
+                             return std::to_string(shipment->quantity);
+                           } else {
+                             return std::string("-");
+                           }
+                         });
 }
 
 void TransportationProblem::fixImbalance() {
@@ -106,25 +99,30 @@ void TransportationProblem::fixImbalance() {
 
 void TransportationProblem::northWestCorner() {
   
-  for (quantity_index row = 0, northwest = 0; row < supply.size(); ++row) {
-    for (quantity_index column = northwest; column < demand.size(); ++column) {
+  for (quantity_index row = 0, northwest = 0;
+       row < _currentSupply.size();
+       ++row) {
+
+    for (quantity_index column = northwest;
+         column < _currentDemand.size();
+         ++column) {
       
-      Quantity quantity = std::min(supply[row], demand[column]);
+      Quantity quantity = std::min(_currentSupply[row], _currentDemand[column]);
       
       if (quantity > 0) {
         shipments[row][column] =
           new Shipment(quantity, costMatrix[row][column], row, column);
         
-        supply[row] -= quantity;
-        demand[column] -= quantity;
+        _currentSupply[row] -= quantity;
+        _currentDemand[column] -= quantity;
         
         if (stateDidChangeCallback) {
           stateDidChangeCallback(this, nullptr);
         }
         
-        assert(supply[row] >= 0);
+        assert(_currentSupply[row] >= 0);
         
-        if (supply[row] == 0) {
+        if (_currentSupply[row] == 0) {
           northwest = column;
           break;
         }
@@ -137,10 +135,7 @@ void TransportationProblem::steppingStone() {
   
   Currency previousCost = std::numeric_limits<Currency>::quiet_NaN();
   Currency currentCost = totalCost();
-  
-  std::cout << "Start optimizing" << std::endl;
-  printShipments(std::cout);
-  
+    
   while (previousCost != currentCost) {
     Currency maxReduction = 0;
     std::vector<Shipment*> move;
@@ -148,8 +143,10 @@ void TransportationProblem::steppingStone() {
     
     _fixDegenerateCase();
     
-    for (quantity_index row = 0; row < supply.size(); ++row) {
-      for (quantity_index column = 0; column < demand.size(); ++column) {
+    for (quantity_index row = 0; row < _currentSupply.size(); ++row) {
+      for (quantity_index column = 0;
+           column < _currentDemand.size();
+           ++column) {
         
         if (shipments[row][column] != nullptr) {
           continue;
@@ -296,8 +293,8 @@ void TransportationProblem::_fixDegenerateCase() {
   
   if (!isDegenerate()) { return; }
   
-  for (quantity_index row = 0; row < supply.size(); ++row) {
-    for (quantity_index column = 0; column < demand.size(); ++column) {
+  for (quantity_index row = 0; row < _currentSupply.size(); ++row) {
+    for (quantity_index column = 0; column < _currentDemand.size(); ++column) {
 
       if (shipments[row][column] != nullptr) { continue; }
       

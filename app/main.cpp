@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
     }
   
   QCoreApplication
-    ::setApplicationName(application.tr("Transportation Problem"));
+    ::setApplicationName("Transportation Problem");
   
   QCoreApplication
     ::setApplicationVersion("1.0.0");

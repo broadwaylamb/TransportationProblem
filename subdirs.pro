@@ -4,6 +4,7 @@ CONFIG += ordered
 
 TARGET = TransportationProblem
 
-VERSION = 1.2.3.4
+win32:VERSION = 1.0.0.0 # major.minor.patch.build
+else:VERSION = 1.0.0    # major.minor.patch
 
 SUBDIRS = core app

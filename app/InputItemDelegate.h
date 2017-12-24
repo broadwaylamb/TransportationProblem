@@ -9,11 +9,13 @@
 #define InputItemDelegate_h
 
 #include "OutputItemDelegate.h"
+#include <functional>
 
 class InputItemDelegate: public OutputItemDelegate {
   
 public:
   explicit InputItemDelegate(QObject *parent = 0);
+  std::function<bool(const QModelIndex&, int)> shouldSetDataCallback = nullptr;
   
 protected:
   QWidget* createEditor(QWidget *parent,

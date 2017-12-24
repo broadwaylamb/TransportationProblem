@@ -1,4 +1,4 @@
-QT += core gui widgets
+QT += core gui widgets concurrent
 TEMPLATE = app
 
 SOURCES += main.cpp \
@@ -19,6 +19,7 @@ DEPENDPATH += . ../core/
 
 LIBS += -L../core/ -L. -lcore
 
+
 CONFIG+=debug
 
 TRANSLATIONS += Languages/app_ru.ts
@@ -26,7 +27,8 @@ TRANSLATIONS += Languages/app_ru.ts
 system(lupdate $$_PRO_FILE_)
 system(lrelease $$_PRO_FILE_)
 
-RESOURCES += translations.qrc
+RESOURCES += translations.qrc \
+             images.qrc
 
-#macx: QMAKE_INFO_PLIST = Info.plist
-
+win32:RC_ICONS += Icons/icon.ico
+macx:ICON = Icons/icon.icns

@@ -24,6 +24,7 @@ QWidget *InputItemDelegate::createEditor(QWidget *parent,
   QLineEdit *editor = new QLineEdit(parent);
   
   auto validator = new QIntValidator;
+  validator->setRange(1, std::numeric_limits<int>::max());
   
   editor->setValidator(validator);
   return editor;
@@ -38,9 +39,12 @@ void InputItemDelegate::setEditorData(QWidget *editor,
 
 
 void InputItemDelegate::setModelData(QWidget *editor,
-                                 QAbstractItemModel *model,
-                                 const QModelIndex &index) const {
+                                     QAbstractItemModel *model,
+                                     const QModelIndex &index) const {
   QLineEdit *line = static_cast<QLineEdit*>(editor);
-  QString value = line->text();
-  model->setData(index, value);
+  int value = line->text().toInt();
+    
+  if (shouldSetDataCallback == nullptr || shouldSetDataCallback(index, value)) {
+    model->setData(index, value);
+  }
 }

@@ -12,6 +12,7 @@
 #include <vector>
 #include <numeric>
 #include <functional>
+#include <algorithm>
 #include <list>
 #include <utility>
 #include <iostream>
@@ -62,7 +63,8 @@ public:
   Currency totalCost() const;
     
   // Printing
-  void printShipments(std::ostream &stream);
+  void printWithCosts(std::ostream &stream);
+  void printWithShipments(std::ostream &stream);
   
   using StateDidChangeCallback = void(TransportationProblem* _Nonnull,
                                       void* _Nullable);
@@ -70,9 +72,73 @@ public:
   std::function<StateDidChangeCallback> stateDidChangeCallback = nullptr;
   
 private:
+  std::vector<Quantity> _currentSupply;
+  std::vector<Quantity> _currentDemand;
+  CostMatrix            _cachedCostMatrix;
   void _fixDegenerateCase();
   std::list<Shipment*> _matrixToList() const;
   std::vector<Shipment*> _getClosedPath(Shipment* _Nonnull shipment) const;
+  
+  template<typename Entry>
+  int _fieldWidth(std::vector<std::vector<Entry>> matrix,
+                  std::function<std::string(Entry)> printEntry) {
+
+    int fieldWidth = 0;
+    
+    for (auto& row : matrix) {
+      for (auto entry : row) {
+        int width = printEntry(entry).size() + 2;
+        fieldWidth = std::max(fieldWidth, width);
+      }
+    }
+    
+    for (auto& q : supply) {
+      int width = std::to_string(q).size() + 2;
+      fieldWidth = std::max(fieldWidth, width);
+    }
+    
+    for (auto& q : demand) {
+      int width = std::to_string(q).size() + 2;
+      fieldWidth = std::max(fieldWidth, width);
+    }
+    
+    return fieldWidth;
+  }
+  
+  template<typename Entry>
+  void prettyPrint(std::ostream &stream,
+                   std::vector<std::vector<Entry>> matrix,
+                   std::function<std::string(Entry)> printEntry) {
+    
+    using matrix_index = typename std::vector<std::vector<Entry>>::size_type;
+    using vector_index = typename std::vector<Entry>::size_type;
+    
+    int fieldWidth = _fieldWidth<Entry>(matrix, printEntry);
+    
+    for (matrix_index i = 0; i < matrix.size(); ++i) {
+      
+      for (auto entry : matrix[i]) {
+        stream.width(fieldWidth);
+        stream << printEntry(entry);
+      }
+      
+      stream << " │ ";
+      stream << supply[i] << std::endl;
+    }
+    
+    for (vector_index i = 0; i <= demand.size() * fieldWidth; ++i) {
+      stream << "─";
+    }
+    
+    stream << "┘" << std::endl;
+    
+    for (auto q : demand) {
+      stream.width(fieldWidth);
+      stream << q;
+    }
+    
+    stream << std::endl << std::endl;
+  }
 };
 } /* End of namespace TProblem */
 

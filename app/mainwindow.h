@@ -20,8 +20,13 @@ public:
 public slots:
   void updateSupplyCount(int newCount);
   void updateDemandCount(int newCount);
+  void updateMinCost(int newCost);
+  void updateMaxCost(int newCost);
+  void updateMinQuantity(int newQuantity);
+  void updateMaxQuantity(int newQuantity);
   void clearState();
   void generateRandomInput();
+  void batchGenerate();
   void solve();
   void loadProblem();
   void saveSolution();
@@ -38,6 +43,10 @@ private:
   TProblem::TransportationProblem* problem = nullptr;
   std::vector<TProblem::Quantity> supply;
   std::vector<TProblem::Quantity> demand;
+  int minCost;
+  int maxCost;
+  int minQuantity;
+  int maxQuantity;
   
   bool pivotFound = false;
   
