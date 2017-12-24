@@ -10,7 +10,7 @@ int main(int argc, char *argv[]) {
   
   QTranslator translator;
   
-    if (translator.load(QLocale(QLocale::Russian),
+    if (translator.load(QLocale(),
                         QLatin1String("app"),
                         QLatin1String("_"),
                         QLatin1String(":/Languages"))) {

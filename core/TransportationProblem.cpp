@@ -8,6 +8,7 @@
 
 #include <limits.h>
 #include <assert.h>
+#include <string>
 #include "TransportationProblem.h"
 
 using namespace TProblem;
@@ -52,21 +53,21 @@ Quantity TransportationProblem::demandTotal() const {
   return std::accumulate(demand.cbegin(), demand.cend(), 0);
 }
 
-void TransportationProblem::printWithCosts(std::ostream &stream) {
+void TransportationProblem::printWithCosts(std::wofstream &stream) {
   prettyPrint<Currency>(stream,
                         costMatrix,
-                        [](Currency cost) { return std::to_string(cost); });
+                        [](Currency cost) { return std::to_wstring(cost); });
 }
 
-void TransportationProblem::printWithShipments(std::ostream &stream) {
+void TransportationProblem::printWithShipments(std::wofstream &stream) {
   
   prettyPrint<Shipment*>(stream,
                          shipments,
                          [](Shipment* shipment) {
                            if (shipment != nullptr) {
-                             return std::to_string(shipment->quantity);
+                             return std::to_wstring(shipment->quantity);
                            } else {
-                             return std::string("-");
+                             return std::wstring(L"-");
                            }
                          });
 }
@@ -265,7 +266,7 @@ static bool removeElementsWithoutNeighbors(std::list<Shipment*> &list) {
 }
 
 std::vector<Shipment*> TransportationProblem::
-  _getClosedPath(TProblem::Shipment * _Nonnull shipment) const {
+  _getClosedPath(TProblem::Shipment* shipment) const {
   
   auto path = _matrixToList();
   

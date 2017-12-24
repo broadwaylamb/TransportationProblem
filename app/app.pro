@@ -19,8 +19,21 @@ DEPENDPATH += . ../core/
 
 LIBS += -L../core/ -L. -lcore
 
+win32 {
+    CONFIG(debug, debug|release) {
+        LIBS += -L../core/debug/
+        PRE_TARGETDEPS += $$OUT_PWD/../core/debug/core.lib
+    } else {
+        LIBS += -L../core/release/
+        PRE_TARGETDEPS += $$OUT_PWD/../core/release/core.lib
+    }
 
-CONFIG+=debug
+    message($$LIBS)
+    message($$OUT_PWD)
+}
+
+
+#CONFIG+=debug
 
 TRANSLATIONS += Languages/app_ru.ts
 
